@@ -10,7 +10,7 @@ itsdangerous==0.24
 Jinja2==2.9.5
 Markdown==2.6.8
 MarkupSafe==1.0
-numpy==1.12.1
+numpy==1.16.4
 packaging==16.8
 psycopg2==2.7.1
 pyparsing==2.2.0
