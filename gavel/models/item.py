@@ -15,6 +15,7 @@ class Item(db.Model):
     active = db.Column(db.Boolean, default=True, nullable=False)
     viewed = db.relationship('Annotator', secondary=view_table)
     prioritized = db.Column(db.Boolean, default=False, nullable=False)
+    estimate = db.Column(db.Integer)
 
     mu = db.Column(db.Float)
     sigma_sq = db.Column(db.Float)

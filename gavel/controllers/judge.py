@@ -197,12 +197,17 @@ def maybe_init_annotator(annotator):
             db.session.commit()
 
 def choose_next(annotator):
+    recompute_estimates()
     items = preferred_items(annotator)
 
     shuffle(items) # useful for argmax case as well in the case of ties
     if items:
         if random() < crowd_bt.EPSILON:
-            return items[0]
+            # update wait time to 0
+            item = items[0]
+            item.estimate = 0
+            db.session.commit()
+            return item
         else:
             return crowd_bt.argmax(lambda i: crowd_bt.expected_information_gain(
                 annotator.alpha,
@@ -213,6 +218,32 @@ def choose_next(annotator):
                 i.sigma_sq), items)
     else:
         return None
+
+def recompute_estimates():
+    # clear all estimates before recomputing
+    all_items = Item.query.all()
+    for item in all_items:
+        item.estimate = None
+
+    annotators = Annotator.query.all()
+    for annotator in annotators:
+        items = preferred_items(annotator)
+        # sort in descending order of expected information gain
+        items.sort(key=lambda i: crowd_bt.expected_information_gain(
+            annotator.alpha,
+            annotator.beta,
+            annotator.prev.mu,
+            annotator.prev.sigma_sq,
+            i.mu,
+            i.sigma_sq), reverse=True)
+
+        for idx, item in enumerate(items):
+            if item.estimate is None:
+                item.estimate = idx * AVG_JUDGE_TIME
+            else:
+                item.estimate = min(item.estimate, idx * AVG_JUDGE_TIME)
+
+    db.session.commit()
 
 def perform_vote(annotator, next_won):
     if next_won:
