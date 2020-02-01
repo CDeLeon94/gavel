@@ -225,7 +225,7 @@ def recompute_estimates():
     for item in all_items:
         item.estimate = None
 
-    annotators = Annotator.query.all()
+    annotators = Annotator.query.filter(Annotator.prev_id != None).all()
     for annotator in annotators:
         items = preferred_items(annotator)
         # sort in descending order of expected information gain
