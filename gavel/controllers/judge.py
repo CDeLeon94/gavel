@@ -15,6 +15,7 @@ from sqlalchemy import func
 from numpy.random import choice, random, shuffle
 from functools import wraps
 from datetime import datetime
+import time
 
 def requires_open(redirect_to):
     def decorator(f):
@@ -156,7 +157,7 @@ def welcome_done():
 def get_current_annotator():
     return Annotator.by_id(session.get(ANNOTATOR_ID, None))
 
-def preferred_items(annotator):
+def preferred_items(annotator, active_items=None, annotators=None):
     '''
     Return a list of preferred items for the given annotator to look at next.
 
@@ -171,13 +172,14 @@ def preferred_items(annotator):
             (Item.active == True) & (~Item.id.in_(ignored_ids))
         ).all()
     else:
-        available_items = Item.query.filter(Item.active == True).all()
+        available_items = active_items if active_items else Item.query.filter(Item.active == True).all()
 
     prioritized_items = [i for i in available_items if i.prioritized]
 
     items = prioritized_items if prioritized_items else available_items
 
-    annotators = Annotator.query.filter(
+    if not annotators: 
+        annotators = Annotator.query.filter(
         (Annotator.active == True) & (Annotator.next != None) & (Annotator.updated != None)
     ).all()
     busy = {i.next.id for i in annotators if \
@@ -220,14 +222,20 @@ def choose_next(annotator):
         return None
 
 def recompute_estimates():
-    # clear all estimates before recomputing
-    all_items = Item.query.all()
-    for item in all_items:
-        item.estimate = None
+    start = time.time()
 
-    annotators = Annotator.query.filter(Annotator.prev_id != None).all()
-    for annotator in annotators:
-        items = preferred_items(annotator)
+    new_estimates = {}
+
+    estimate_annotators = Annotator.query.filter(Annotator.prev_id != None).all()
+
+    active_annotators = Annotator.query.filter(
+        (Annotator.active == True) & (Annotator.next != None) & (Annotator.updated != None)
+    ).all()
+
+    active_items = Item.query.filter(Item.active == True).all()
+
+    for annotator in estimate_annotators:
+        items = preferred_items(annotator, active_items, active_annotators)
         # sort in descending order of expected information gain
         items.sort(key=lambda i: crowd_bt.expected_information_gain(
             annotator.alpha,
@@ -238,12 +246,14 @@ def recompute_estimates():
             i.sigma_sq), reverse=True)
 
         for idx, item in enumerate(items):
-            if item.estimate is None:
-                item.estimate = idx * AVG_JUDGE_TIME
+            if item.id not in new_estimates.keys():
+                new_estimates[item.id] = idx * AVG_JUDGE_TIME
             else:
-                item.estimate = min(item.estimate, idx * AVG_JUDGE_TIME)
+                new_estimates[item.id] = min(new_estimates[item.id], idx * AVG_JUDGE_TIME)
 
     db.session.commit()
+    end = time.time()
+    print(end-start)
 
 def perform_vote(annotator, next_won):
     if next_won:
