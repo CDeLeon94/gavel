@@ -1,5 +1,6 @@
 import gavel.crowd_bt as crowd_bt
 from flask_sqlalchemy import SQLAlchemy
+import gavel.settings as settings
 
 class SerializableAlchemy(SQLAlchemy):
     def apply_driver_hacks(self, app, info, options):
@@ -16,3 +17,9 @@ from gavel.models.setting import Setting
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.sql.expression import desc
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+engine = create_engine(settings.DB_URI)
+Session = sessionmaker(bind=engine)

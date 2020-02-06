@@ -16,6 +16,8 @@ from numpy.random import choice, random, shuffle
 from functools import wraps
 from datetime import datetime
 import time
+import multiprocessing 
+
 
 def requires_open(redirect_to):
     def decorator(f):
@@ -157,7 +159,7 @@ def welcome_done():
 def get_current_annotator():
     return Annotator.by_id(session.get(ANNOTATOR_ID, None))
 
-def preferred_items(annotator, active_items=None, annotators=None):
+def preferred_items(annotator):
     '''
     Return a list of preferred items for the given annotator to look at next.
 
@@ -172,16 +174,45 @@ def preferred_items(annotator, active_items=None, annotators=None):
             (Item.active == True) & (~Item.id.in_(ignored_ids))
         ).all()
     else:
-        available_items = active_items if active_items else Item.query.filter(Item.active == True).all()
+        available_items = Item.query.filter(Item.active == True).all()
 
     prioritized_items = [i for i in available_items if i.prioritized]
 
     items = prioritized_items if prioritized_items else available_items
 
-    if not annotators: 
-        annotators = Annotator.query.filter(
+    annotators = Annotator.query.filter(
         (Annotator.active == True) & (Annotator.next != None) & (Annotator.updated != None)
     ).all()
+    busy = {i.next.id for i in annotators if \
+        (datetime.utcnow() - i.updated).total_seconds() < settings.TIMEOUT * 60}
+    nonbusy = [i for i in items if i.id not in busy]
+    preferred = nonbusy if nonbusy else items
+
+    less_seen = [i for i in preferred if len(i.viewed) < settings.MIN_VIEWS]
+
+    return less_seen if less_seen else preferred
+
+def preferred_items_est(annotator, active_items, annotators, session):
+    '''
+    Return a list of preferred items for the given annotator to look at next.
+
+    This method uses a variety of strategies to try to select good candidate
+    projects.
+    '''
+    items = []
+    ignored_ids = {i.id for i in annotator.ignore}
+
+    if ignored_ids:
+        available_items = session.query(Item).filter(
+            (Item.active == True) & (~Item.id.in_(ignored_ids))
+        ).all()
+    else:
+        available_items = active_items if active_items else session.query(Item).filter(Item.active == True).all()
+
+    prioritized_items = [i for i in available_items if i.prioritized]
+
+    items = prioritized_items if prioritized_items else available_items
+
     busy = {i.next.id for i in annotators if \
         (datetime.utcnow() - i.updated).total_seconds() < settings.TIMEOUT * 60}
     nonbusy = [i for i in items if i.id not in busy]
@@ -199,7 +230,10 @@ def maybe_init_annotator(annotator):
             db.session.commit()
 
 def choose_next(annotator):
-    recompute_estimates()
+    # recompute_estimates()
+    p = multiprocessing.Process(target=recompute_estimates)
+    p.start()
+
     items = preferred_items(annotator)
 
     shuffle(items) # useful for argmax case as well in the case of ties
@@ -223,19 +257,20 @@ def choose_next(annotator):
 
 def recompute_estimates():
     start = time.time()
+    session = Session()
 
     new_estimates = {}
 
-    estimate_annotators = Annotator.query.filter(Annotator.prev_id != None).all()
+    estimate_annotators = session.query(Annotator).filter(Annotator.prev_id != None).all()
 
-    active_annotators = Annotator.query.filter(
+    active_annotators = session.query(Annotator).filter(
         (Annotator.active == True) & (Annotator.next != None) & (Annotator.updated != None)
     ).all()
 
-    active_items = Item.query.filter(Item.active == True).all()
+    active_items = session.query(Item).filter(Item.active == True).all()
 
     for annotator in estimate_annotators:
-        items = preferred_items(annotator, active_items, active_annotators)
+        items = preferred_items_est(annotator, active_items, active_annotators, session)
         # sort in descending order of expected information gain
         items.sort(key=lambda i: crowd_bt.expected_information_gain(
             annotator.alpha,
@@ -251,7 +286,12 @@ def recompute_estimates():
             else:
                 new_estimates[item.id] = min(new_estimates[item.id], idx * AVG_JUDGE_TIME)
 
-    db.session.commit()
+    for k,v in new_estimates.items():
+        item = session.query(Item).with_for_update().filter(Item.id == k).first()
+        item.estimate = v
+
+    session.commit()
+    session.close()
     end = time.time()
     print(end-start)
 
