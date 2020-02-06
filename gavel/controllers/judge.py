@@ -157,7 +157,9 @@ def welcome_done():
     return redirect(url_for('index'))
 
 def get_current_annotator():
-    return Annotator.by_id(session.get(ANNOTATOR_ID, None))
+    annotator_id = session.get(ANNOTATOR_ID, None)
+    return Annotator.query.with_for_update().filter(Annotator.id == annotator_id).first()
+    # return Annotator.by_id(session.get(ANNOTATOR_ID, None))
 
 def preferred_items(annotator):
     '''
