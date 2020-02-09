@@ -14,6 +14,7 @@ from gavel.models.annotator import Annotator, ignore_table
 from gavel.models.item import Item, view_table
 from gavel.models.decision import Decision
 from gavel.models.setting import Setting
+from gavel.models.estimate import Estimate
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.sql.expression import desc

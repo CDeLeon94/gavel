@@ -157,9 +157,9 @@ def welcome_done():
     return redirect(url_for('index'))
 
 def get_current_annotator():
-    annotator_id = session.get(ANNOTATOR_ID, None)
-    return Annotator.query.with_for_update().filter(Annotator.id == annotator_id).first()
-    # return Annotator.by_id(session.get(ANNOTATOR_ID, None))
+    # annotator_id = session.get(ANNOTATOR_ID, None)
+    # return Annotator.query.with_for_update().filter(Annotator.id == annotator_id).first()
+    return Annotator.by_id(session.get(ANNOTATOR_ID, None))
 
 def preferred_items(annotator):
     '''
@@ -288,9 +288,9 @@ def recompute_estimates():
             else:
                 new_estimates[item.id] = min(new_estimates[item.id], idx * AVG_JUDGE_TIME)
 
-    for k,v in new_estimates.items():
-        item = session.query(Item).with_for_update().filter(Item.id == k).first()
-        item.estimate = v
+    for item_id, estimate in new_estimates.items():
+        estimate_obj = session.query(Estimate).with_for_update().filter(Estimate.item_id == item_id).first()
+        estimate_obj.estimate = estimate
 
     session.commit()
     session.close()
