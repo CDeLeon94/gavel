@@ -97,6 +97,7 @@
           <th class="no-sort">Email</th>
           <th data-sort-method="caseInsensitiveSort">Active</th>
           <th class="no-sort">Delete</th>
+          <th class="no-sort">History</th>
         </tr>
       </thead>
       <tbody>
@@ -131,10 +132,24 @@
               <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             </form>
           </td>
+          <td class="compact" onclick='view();'>
+            <form action="/admin/annotator" method="post">
+              <input type="submit" name="action" value="View" class="neutral">
+              <input type="hidden" name="annotator_id" value="{{ annotator.id }}">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+            </form>
+          </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
+  </div>
+</div>
+
+<div id="myModal" class="modal">
+  <div class="modal-content">
+    <span class="close">&times;</span>
+    <p>hello world</p>
   </div>
 </div>
 
@@ -205,6 +220,7 @@
 {% endblock %}
 {% block end %}
 <script src="{{ url_for('static', filename='js/vendor/tablesort.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/vendor/tablesort.number.js') }}"></script>
 <script src="{{ url_for('static', filename='js/vendor/tablesort.number.js') }}"></script>
 <script>
 var tables = [

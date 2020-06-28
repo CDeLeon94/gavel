@@ -161,6 +161,17 @@ def annotator():
             db.session.commit()
         except IntegrityError as e:
             return utils.server_error(str(e))
+    elif action == 'View':
+        print("All votes: ")
+        allVotes = Decision.query.all()
+        for vote in allVotes:
+            print(str(vote.annotator_id) + " " + str(vote.loser_id) + " " + str(vote.winner_id))
+        annotator_id = request.form['annotator_id']
+        print("Votes for judge id: " + str(annotator_id))
+        decisions = Decision.query.filter_by(annotator_id=annotator_id).all()
+        for decision in decisions:
+            print(str(decision.loser_id) + " " + str(decision.winner_id))
+        db.session.commit()
     return redirect(url_for('admin'))
 
 @app.route('/admin/setting', methods=['POST'])
